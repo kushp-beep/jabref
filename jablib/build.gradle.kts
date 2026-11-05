@@ -334,10 +334,21 @@ tasks.test {
 }
 
 jmh {
-    warmupIterations = 5
-    iterations = 10
-    fork = 2
+    warmupIterations = providers.gradleProperty("jmh.warmupIterations").map(String::toInt).getOrElse(5)
+    iterations = providers.gradleProperty("jmh.iterations").map(String::toInt).getOrElse(10)
+    timeOnIteration = providers.gradleProperty("jmh.timeOnIteration").getOrElse("1s")
+    fork = providers.gradleProperty("jmh.fork").map(String::toInt).getOrElse(2)
     zip64  = true
+
+    providers.gradleProperty("jmh.includes").orNull?.let { benchmarkFilter ->
+        includes.add(benchmarkFilter)
+    }
+    providers.gradleProperty("jmh.fixture").orNull?.let { fixture ->
+        jmhOptions.addAll("-p", "fixture=$fixture")
+    }
+    providers.gradleProperty("jmh.size").orNull?.let { size ->
+        jmhOptions.addAll("-p", "size=$size")
+    }
 }
 
 val testSourceSet = sourceSets.test.get()
