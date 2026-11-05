@@ -25,6 +25,7 @@ import org.jabref.gui.duplicationFinder.DuplicateResolverDialog.DuplicateResolve
 import org.jabref.gui.duplicationFinder.DuplicateResolverDialog.DuplicateResolverType;
 import org.jabref.gui.preferences.GuiPreferences;
 import org.jabref.gui.util.UiTaskExecutor;
+import org.jabref.logic.database.DuplicateCandidateGenerator;
 import org.jabref.logic.database.DuplicateCheck;
 import org.jabref.logic.l10n.Localization;
 import org.jabref.logic.util.BackgroundTask;
@@ -56,6 +57,7 @@ public class DuplicateSearch extends SimpleCommand {
 
     private final GuiPreferences preferences;
     private final DuplicateCheck duplicateCheck;
+    private final DuplicateCandidateGenerator candidateGenerator;
     private final TaskExecutor taskExecutor;
 
     // For "apply to all entries" functionality.
@@ -73,6 +75,7 @@ public class DuplicateSearch extends SimpleCommand {
         this.stateManager = stateManager;
         this.preferences = preferences;
         this.duplicateCheck = new DuplicateCheck(entryTypesManager);
+        this.candidateGenerator = new DuplicateCandidateGenerator();
         this.taskExecutor = taskExecutor;
 
         this.executable.bind(needsDatabase(stateManager));
@@ -104,19 +107,16 @@ public class DuplicateSearch extends SimpleCommand {
     }
 
     private void searchPossibleDuplicates(List<BibEntry> entries, BibDatabaseMode databaseMode) {
-        for (int i = 0; i < (entries.size() - 1); i++) {
-            for (int j = i + 1; j < entries.size(); j++) {
-                if (duplicateSearchCancelled.get() || Thread.interrupted()) {
-                    return;
-                }
+        List<DuplicateCandidateGenerator.Candidate> candidates = candidateGenerator.generate(entries,
+                () -> duplicateSearchCancelled.get() || Thread.currentThread().isInterrupted());
+        for (DuplicateCandidateGenerator.Candidate candidate : candidates) {
+            if (duplicateSearchCancelled.get() || Thread.interrupted()) {
+                return;
+            }
 
-                BibEntry first = entries.get(i);
-                BibEntry second = entries.get(j);
-
-                if (duplicateCheck.isDuplicate(first, second, databaseMode)) {
-                    duplicates.add(Arrays.asList(first, second));
-                    duplicateCountObservable.set(String.valueOf(duplicateCount.incrementAndGet()));
-                }
+            if (duplicateCheck.isDuplicate(candidate.first(), candidate.second(), databaseMode)) {
+                duplicates.add(Arrays.asList(candidate.first(), candidate.second()));
+                duplicateCountObservable.set(String.valueOf(duplicateCount.incrementAndGet()));
             }
         }
         libraryAnalyzed.set(true);
